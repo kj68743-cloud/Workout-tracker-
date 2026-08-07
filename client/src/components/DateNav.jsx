@@ -1,6 +1,9 @@
+import { useState } from 'react';
 import { todayStr, shiftDate, formatNavDate } from '../utils/date.js';
+import DatePickerModal from './DatePickerModal.jsx';
 
 export default function DateNav({ date, onChange }) {
+  const [pickerOpen, setPickerOpen] = useState(false);
   const isToday = date === todayStr();
 
   return (
@@ -14,16 +17,9 @@ export default function DateNav({ date, onChange }) {
         ‹
       </button>
 
-      <label className="date-nav-picker">
+      <button type="button" className="date-nav-picker" onClick={() => setPickerOpen(true)}>
         <span className="date-nav-text">{formatNavDate(date)}</span>
-        <input
-          type="date"
-          className="date-nav-input"
-          value={date}
-          onChange={(e) => e.target.value && onChange(e.target.value)}
-          aria-label="Choose a date"
-        />
-      </label>
+      </button>
 
       <button
         type="button"
@@ -38,6 +34,17 @@ export default function DateNav({ date, onChange }) {
         <button type="button" className="date-nav-today" onClick={() => onChange(todayStr())}>
           Today
         </button>
+      )}
+
+      {pickerOpen && (
+        <DatePickerModal
+          date={date}
+          onApply={(newDate) => {
+            onChange(newDate);
+            setPickerOpen(false);
+          }}
+          onClose={() => setPickerOpen(false)}
+        />
       )}
     </div>
   );

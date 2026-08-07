@@ -154,10 +154,17 @@ input {
 }
 
 .date-nav-picker {
-  position: relative;
   flex: 1;
   min-width: 0;
   display: flex;
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 10px;
+  padding: 0;
+}
+
+.date-nav-picker:active {
+  background: #26242b;
 }
 
 .date-nav-text {
@@ -171,20 +178,6 @@ input {
   font-weight: 700;
   color: var(--text-dim);
   padding: 7px 6px;
-  border-radius: 10px;
-  border: 1px solid var(--card-border);
-  background: var(--card-bg);
-}
-
-.date-nav-input {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  opacity: 0;
-  cursor: pointer;
-  border: none;
-  padding: 0;
 }
 
 .date-nav-today {
@@ -196,6 +189,89 @@ input {
   padding: 6px 12px;
   font-size: 12px;
   font-weight: 800;
+}
+
+/* ---------- Date picker modal ---------- */
+
+.date-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  z-index: 60;
+}
+
+.date-modal-sheet {
+  width: 100%;
+  max-width: var(--max-width);
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-bottom: none;
+  border-radius: 22px 22px 0 0;
+  padding: 20px 18px calc(22px + var(--safe-bottom));
+  animation: slide-up 0.22s ease;
+}
+
+.date-modal-title {
+  font-size: 16px;
+  font-weight: 800;
+  margin-bottom: 16px;
+}
+
+.date-modal-fields {
+  display: flex;
+  gap: 10px;
+}
+
+.date-modal-field {
+  flex: 1.2;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.date-modal-field-day {
+  flex: 0.8;
+}
+
+.date-modal-field label {
+  font-size: 11px;
+  color: var(--text-dim);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.date-modal-field select {
+  width: 100%;
+  background: #26242b;
+  border: 1px solid var(--card-border);
+  color: var(--text);
+  border-radius: 10px;
+  padding: 10px 6px;
+  font-size: 14px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.date-modal-field select:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.date-modal-preview {
+  margin-top: 16px;
+  text-align: center;
+  font-size: 14.5px;
+  font-weight: 700;
+  color: var(--accent);
+  background: rgba(255, 176, 32, 0.08);
+  border: 1px solid var(--accent-dim);
+  border-radius: 10px;
+  padding: 10px;
 }
 
 /* ---------- Progress ---------- */
