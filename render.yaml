@@ -1,0 +1,24 @@
+# Render.com blueprint for the backend API (Express + SQLite).
+# Deploy: render.com → New → Blueprint → point at this repo.
+# SQLite needs a real persistent disk, which is why the backend goes on a
+# host like this rather than a serverless platform (Vercel/Netlify
+# functions have ephemeral filesystems — fine for the static frontend,
+# not for a database file).
+services:
+  - type: web
+    name: five-day-split-tracker-api
+    runtime: node
+    plan: free
+    rootDir: server
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: DATA_DIR
+        value: /data
+      - key: PORT
+        value: 4000
+    disk:
+      name: tracker-data
+      mountPath: /data
+      sizeGB: 1

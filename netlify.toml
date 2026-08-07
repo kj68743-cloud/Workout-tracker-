@@ -1,0 +1,11 @@
+# Netlify deploy config for the client (frontend only — see README for
+# where the Express + SQLite backend gets hosted).
+[build]
+  base = "client"
+  command = "npm run build"
+  publish = "client/dist"
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
