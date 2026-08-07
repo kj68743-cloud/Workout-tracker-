@@ -1,5 +1,7 @@
-# Netlify deploy config for the client (frontend only — see README for
-# where the Express + SQLite backend gets hosted).
+# Netlify deploy config for the client only. Not the recommended path (see
+# README — Vercel + Turso hosts client and API together for free); use this
+# only if you specifically want the frontend on Netlify with the backend
+# hosted separately (Render/Fly/etc. — set VITE_API_URL to point at it).
 [build]
   base = "client"
   command = "npm run build"

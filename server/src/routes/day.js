@@ -5,27 +5,32 @@ import { getExerciseRow, recomputeDayCompletion, computeStreak, todayStr } from 
 
 const router = Router();
 
-function buildDayPayload(day, date) {
+async function buildDayPayload(day, date) {
   const exerciseIds = DAY_PLAN[day] || [];
-  const completedRows = db
-    .prepare('SELECT exercise_id, set_index FROM set_completions WHERE date = ? AND day = ?')
-    .all(date, day);
-  const completedSet = new Set(completedRows.map((r) => `${r.exercise_id}:${r.set_index}`));
-
-  const exercises = exerciseIds.map((id) => {
-    const ex = getExerciseRow(id);
-    const completedSets = Array.from({ length: ex.sets }, (_, i) =>
-      completedSet.has(`${id}:${i}`)
-    );
-    return { ...ex, completedSets };
+  const completedResult = await db.execute({
+    sql: 'SELECT exercise_id AS exerciseId, set_index AS setIndex FROM set_completions WHERE date = ? AND day = ?',
+    args: [date, day],
   });
+  const completedSet = new Set(completedResult.rows.map((r) => `${r.exerciseId}:${r.setIndex}`));
 
-  const cardioDone = !!db.prepare('SELECT 1 FROM cardio_completions WHERE date = ?').get(date);
-  const totalSets = exercises.reduce((s, e) => s + e.sets, 0);
-  const doneSets = exercises.reduce(
-    (s, e) => s + e.completedSets.filter(Boolean).length,
-    0
+  const exercises = await Promise.all(
+    exerciseIds.map(async (id) => {
+      const ex = await getExerciseRow(id);
+      const completedSets = Array.from({ length: ex.sets }, (_, i) =>
+        completedSet.has(`${id}:${i}`)
+      );
+      return { ...ex, completedSets };
+    })
   );
+
+  const cardioResult = await db.execute({
+    sql: 'SELECT 1 FROM cardio_completions WHERE date = ?',
+    args: [date],
+  });
+  const cardioDone = cardioResult.rows.length > 0;
+
+  const totalSets = exercises.reduce((s, e) => s + e.sets, 0);
+  const doneSets = exercises.reduce((s, e) => s + e.completedSets.filter(Boolean).length, 0);
 
   return {
     day,
@@ -36,65 +41,78 @@ function buildDayPayload(day, date) {
     progress: {
       doneSets,
       totalSets,
-      // "Slots" = exercise sets plus one slot for cardio, which is what the
-      // progress bar and day-complete checks are driven by.
       doneSlots: doneSets + (cardioDone ? 1 : 0),
-      totalSlots: totalSets + 1,
+      totalSlots: totalSets + 1, // +1 slot represents cardio
     },
-    streak: computeStreak(),
+    streak: await computeStreak(),
   };
 }
 
-router.get('/:day', (req, res) => {
-  const day = Number(req.params.day);
-  if (!DAYS.includes(day)) return res.status(404).json({ error: 'Unknown day' });
-  const date = req.query.date || todayStr();
-  res.json(buildDayPayload(day, date));
+router.get('/:day', async (req, res, next) => {
+  try {
+    const day = Number(req.params.day);
+    if (!DAYS.includes(day)) return res.status(404).json({ error: 'Unknown day' });
+    const date = req.query.date || todayStr();
+    res.json(await buildDayPayload(day, date));
+  } catch (err) {
+    next(err);
+  }
 });
 
-router.post('/:day/set', (req, res) => {
-  const day = Number(req.params.day);
-  if (!DAYS.includes(day)) return res.status(404).json({ error: 'Unknown day' });
-  const { date, exerciseId, setIndex, completed } = req.body;
-  if (!date || !exerciseId || setIndex == null) {
-    return res.status(400).json({ error: 'date, exerciseId and setIndex are required' });
-  }
-  if (!(DAY_PLAN[day] || []).includes(exerciseId)) {
-    return res.status(400).json({ error: 'Exercise does not belong to this day' });
-  }
+router.post('/:day/set', async (req, res, next) => {
+  try {
+    const day = Number(req.params.day);
+    if (!DAYS.includes(day)) return res.status(404).json({ error: 'Unknown day' });
+    const { date, exerciseId, setIndex, completed } = req.body;
+    if (!date || !exerciseId || setIndex == null) {
+      return res.status(400).json({ error: 'date, exerciseId and setIndex are required' });
+    }
+    if (!(DAY_PLAN[day] || []).includes(exerciseId)) {
+      return res.status(400).json({ error: 'Exercise does not belong to this day' });
+    }
 
-  if (completed) {
-    db.prepare(
-      `INSERT OR IGNORE INTO set_completions (date, day, exercise_id, set_index, completed_at)
-       VALUES (?, ?, ?, ?, ?)`
-    ).run(date, day, exerciseId, setIndex, new Date().toISOString());
-  } else {
-    db.prepare(
-      'DELETE FROM set_completions WHERE date = ? AND day = ? AND exercise_id = ? AND set_index = ?'
-    ).run(date, day, exerciseId, setIndex);
-  }
+    if (completed) {
+      await db.execute({
+        sql: `INSERT OR IGNORE INTO set_completions (date, day, exercise_id, set_index, completed_at)
+              VALUES (?, ?, ?, ?, ?)`,
+        args: [date, day, exerciseId, setIndex, new Date().toISOString()],
+      });
+    } else {
+      await db.execute({
+        sql: 'DELETE FROM set_completions WHERE date = ? AND day = ? AND exercise_id = ? AND set_index = ?',
+        args: [date, day, exerciseId, setIndex],
+      });
+    }
 
-  recomputeDayCompletion(date, day);
-  res.json(buildDayPayload(day, date));
+    await recomputeDayCompletion(date, day);
+    res.json(await buildDayPayload(day, date));
+  } catch (err) {
+    next(err);
+  }
 });
 
-router.post('/:day/cardio', (req, res) => {
-  const day = Number(req.params.day);
-  if (!DAYS.includes(day)) return res.status(404).json({ error: 'Unknown day' });
-  const { date, completed } = req.body;
-  if (!date) return res.status(400).json({ error: 'date is required' });
+router.post('/:day/cardio', async (req, res, next) => {
+  try {
+    const day = Number(req.params.day);
+    if (!DAYS.includes(day)) return res.status(404).json({ error: 'Unknown day' });
+    const { date, completed } = req.body;
+    if (!date) return res.status(400).json({ error: 'date is required' });
 
-  if (completed) {
-    db.prepare(
-      `INSERT INTO cardio_completions (date, completed_at) VALUES (?, ?)
-       ON CONFLICT(date) DO UPDATE SET completed_at = excluded.completed_at`
-    ).run(date, new Date().toISOString());
-  } else {
-    db.prepare('DELETE FROM cardio_completions WHERE date = ?').run(date);
+    if (completed) {
+      await db.execute({
+        sql: `INSERT INTO cardio_completions (date, completed_at) VALUES (?, ?)
+              ON CONFLICT(date) DO UPDATE SET completed_at = excluded.completed_at`,
+        args: [date, new Date().toISOString()],
+      });
+    } else {
+      await db.execute({ sql: 'DELETE FROM cardio_completions WHERE date = ?', args: [date] });
+    }
+
+    await recomputeDayCompletion(date, day);
+    res.json(await buildDayPayload(day, date));
+  } catch (err) {
+    next(err);
   }
-
-  recomputeDayCompletion(date, day);
-  res.json(buildDayPayload(day, date));
 });
 
 export default router;

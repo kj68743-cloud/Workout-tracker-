@@ -1,17 +1,17 @@
-# Render.com blueprint for the backend API (Express + SQLite).
+# Render.com blueprint for the ALTERNATIVE single-host deploy (see README
+# "Alternative: single always-on host with a real disk"). Builds the root
+# Dockerfile, which bundles the client build + server into one process/URL.
+#
+# Needs the Starter plan (~$7/mo) — Render's free web services can't attach
+# a persistent disk at all, so SQLite has nowhere durable to live there.
+#
 # Deploy: render.com → New → Blueprint → point at this repo.
-# SQLite needs a real persistent disk, which is why the backend goes on a
-# host like this rather than a serverless platform (Vercel/Netlify
-# functions have ephemeral filesystems — fine for the static frontend,
-# not for a database file).
 services:
   - type: web
-    name: five-day-split-tracker-api
-    runtime: node
-    plan: free
-    rootDir: server
-    buildCommand: npm install
-    startCommand: npm start
+    name: five-day-split-tracker
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: starter
     healthCheckPath: /api/health
     envVars:
       - key: DATA_DIR

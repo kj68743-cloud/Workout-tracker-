@@ -1,0 +1,34 @@
+# Fly.io deploy config for the ALTERNATIVE single-host deploy (see README
+# "Alternative: single always-on host with a real disk"). Uses the root
+# Dockerfile. Fly has no free allowance as of 2026, so this costs a small
+# monthly amount (a shared-cpu-1x machine + ~1GB volume is only a few
+# dollars, but it's not $0 like the Vercel + Turso path).
+#
+#   fly launch --no-deploy   (first time only, creates the app + fly.toml app name)
+#   fly volumes create tracker_data --size 1 --region <your-region>
+#   fly deploy
+#
+# See README for the full walkthrough.
+
+app = "five-day-split-tracker"        # change if this name is taken
+primary_region = "iad"                 # change to a region near you
+
+[build]
+
+[env]
+  PORT = "4000"
+  DATA_DIR = "/data"
+
+[[mounts]]
+  source = "tracker_data"
+  destination = "/data"
+
+[http_service]
+  internal_port = 4000
+  force_https = true
+  auto_stop_machines = "off"
+  auto_start_machines = true
+  min_machines_running = 1
+
+[[vm]]
+  size = "shared-cpu-1x"

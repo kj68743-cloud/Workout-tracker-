@@ -6,7 +6,7 @@ streak, and see progress over time — all backed by a real database so data
 follows you across devices, not just one browser.
 
 - **Frontend:** React + Vite (`/client`)
-- **Backend:** Node/Express + SQLite via `better-sqlite3` (`/server`)
+- **Backend:** Node/Express + [libSQL](https://turso.tech/libsql) (`/server`, `/api`) — SQLite-compatible; runs against a local file for dev, or a hosted [Turso](https://turso.tech) database in production so the app works on free, stateless hosting.
 
 ## Features
 
@@ -32,20 +32,23 @@ about the plan is hardcoded twice.
 
 ```
 .
-├── client/           Vite + React frontend
+├── client/            Vite + React frontend
 │   └── src/
 │       ├── components/   UI screens & pieces
 │       ├── api.js        Thin fetch wrapper around the backend API
 │       └── styles/       Design tokens (dark theme, amber accent)
-├── server/           Express + SQLite backend
+├── server/            Express + libSQL backend
 │   └── src/
 │       ├── planData.js   The workout plan (single source of truth)
-│       ├── db.js         SQLite schema + seeding
+│       ├── db.js         DB connection (local file or Turso) + schema/seed
 │       ├── lib.js        Streak / day-completion logic
+│       ├── app.js        The Express app (routes, no listener)
+│       ├── index.js      Starts app.js as a long-running process (local/Docker/Fly)
 │       └── routes/       /api/day, /api/exercises, /api/history, /api/metrics, /api/export|import
-├── render.yaml        Backend deploy config (Render)
-├── netlify.toml        Frontend deploy config (Netlify)
-└── client/vercel.json   Frontend deploy config (Vercel)
+├── api/[...path].js   Vercel serverless entry — wraps the same app.js
+├── vercel.json         Deploy config for the recommended all-in-one Vercel setup
+├── Dockerfile / fly.toml / render.yaml   Alternative: one always-on host with a real disk (small monthly cost)
+└── netlify.toml         Alternative: Netlify for the static frontend only
 ```
 
 ## Local development
@@ -67,65 +70,81 @@ npm run dev:server   # http://localhost:4000
 npm run dev:client   # http://localhost:5173
 ```
 
-The SQLite file is created automatically at `server/data/tracker.db` on
-first run (gitignored). Delete that folder any time to reset all logged
-data — the exercise plan itself always reseeds from `planData.js`.
+Without any Turso env vars set, the server automatically uses a local
+SQLite file at `server/data/tracker.db` (gitignored). Delete that folder
+any time to reset all logged data — the exercise plan itself always
+reseeds from `planData.js`.
 
-## Deploying
+## Deploying (recommended: free, one URL)
 
-The frontend (static) and backend (needs persistent storage) deploy
-separately.
+This is the path that costs $0/month: the client and API deploy together
+as one Vercel project (one URL, no CORS or env-var juggling), and the
+database is a free hosted [Turso](https://turso.tech) instance instead of
+a local file — which is what lets the compute side run on Vercel's free,
+stateless functions without losing data between requests.
 
-### 1. Backend — Render (or Railway / Fly.io)
+**1. Create a free Turso database** (turso.tech → sign up → Create Database,
+all in the browser, no CLI needed):
 
-SQLite needs a real disk, which rules out Vercel/Netlify serverless
-functions (their filesystem is ephemeral). Render's free tier gives you a
-small persistent disk, which is what `render.yaml` is set up for:
+- Pick any name and region.
+- Once created, open the database → copy the **connection URL**
+  (`libsql://your-db-name-xxxx.turso.io`).
+- Create a token for it (Tokens tab → Create Token) and copy it.
 
-1. Push this repo to GitHub.
-2. On [render.com](https://render.com): **New → Blueprint**, point it at the
-   repo. It reads `render.yaml` and provisions a web service with a 1GB
-   disk mounted at `/data`.
-3. Note the resulting URL, e.g. `https://five-day-split-tracker-api.onrender.com`.
+**2. Deploy to Vercel:**
 
-Railway or Fly.io work the same way — install deps in `server/`, run
-`npm start`, mount a persistent volume, and set `DATA_DIR` to point at it.
+- [vercel.com](https://vercel.com) → **Add New → Project** → import
+  `kj68743-cloud/Workout-tracker-` from GitHub.
+- Leave **Root Directory** as the repo root (the included `vercel.json`
+  handles building the client and wiring up `/api`).
+- Before deploying, add two environment variables (Project Settings →
+  Environment Variables, or the "Environment Variables" step in the import
+  wizard):
+  ```
+  TURSO_DATABASE_URL = libsql://your-db-name-xxxx.turso.io
+  TURSO_AUTH_TOKEN   = <the token you copied>
+  ```
+- Deploy. Vercel gives you a URL like
+  `https://workout-tracker-yourname.vercel.app` — that's the live app.
+  Open it on your phone and add it to your home screen for an app-like feel.
 
-### 2. Frontend — Vercel or Netlify
+That's it — no `DATA_DIR`, no `VITE_API_URL`, no second service. The same
+Vercel deploy serves the React app *and* the API from the same domain, and
+every write goes straight to Turso, so it's already synced across any
+device that opens the same URL.
 
-**Vercel:** New Project → import the repo → set **Root Directory** to
-`client` (the framework preset "Vite" auto-fills the rest, or use the
-included `client/vercel.json`). Add an environment variable:
+Since Turso and Vercel are both connected to your own accounts, I can't
+click through the sign-up/deploy screens for you — but there's no code
+left to write; it's just those two dashboards.
 
-```
-VITE_API_URL=https://<your-backend-url>/api
-```
+## Alternative: single always-on host with a real disk (small cost)
 
-**Netlify:** New site from Git → the root `netlify.toml` already points
-Netlify at `client/` with the right build/publish paths. Add the same
-`VITE_API_URL` environment variable in Site settings → Environment.
+If you'd rather not depend on Turso and are fine with a small monthly
+cost (~$7–8/mo), the app also runs as one plain Node process with a local
+SQLite file, using the included `Dockerfile`:
 
-Without `VITE_API_URL` set, the client calls same-origin `/api/...`, which
-only works when a proxy/dev server is in front of it — always set it for a
-production deploy.
+- **Render** — `render.yaml` is set up for this (**New → Blueprint**,
+  set the web service's plan to **Starter** so it can attach a persistent
+  disk — Render's free tier has no disk at all, so this option specifically
+  needs the paid plan).
+- **Fly.io** — `fly.toml` is set up for this (`fly launch --no-deploy`,
+  `fly volumes create tracker_data --size 1`, `fly deploy`). Fly no longer
+  has a free allowance, so this also costs a small monthly amount.
+- Any VPS / Railway — `npm run build --prefix client`, then
+  `npm start --prefix server` with `DATA_DIR` pointed at a persistent path.
 
-### All-in-one alternative
-
-If you'd rather not run two services, the whole app (client + server) can
-run as a single Node process behind any host that gives you a persistent
-disk (Railway, Fly.io, a small VPS, etc.) — run `npm run build` in
-`client/`, have Express serve `client/dist` as static files, and skip
-`VITE_API_URL` entirely since everything's same-origin. That's a small,
-optional change to `server/src/index.js` if you want it later.
+In every case here, leave `TURSO_DATABASE_URL` unset — the server falls
+back to a local SQLite file automatically.
 
 ## Data & backup
 
-Every write goes straight to SQLite on the backend, so any device pointed
-at the same API URL sees the same data. As a safety net (and a way to move
-data between a fresh device or a redeployed backend), use **More → Export
-JSON** to download a full backup, and **More → Import JSON backup** to
-restore it. CSV export is also available for a human-readable/spreadsheet
-copy, but only JSON can be re-imported.
+Every write goes straight to the database (Turso in the recommended setup,
+or a local file in the alternative), so any device pointed at the same
+deployed URL sees the same data. As a safety net (and a way to move data
+if you ever change hosting), use **More → Export JSON** to download a full
+backup, and **More → Import JSON backup** to restore it. CSV export is
+also available for a human-readable/spreadsheet copy, but only JSON can be
+re-imported.
 
 ## Notes on the plan data
 
