@@ -5,6 +5,10 @@ node_modules/
 dist/
 build/
 
+# Scratch dir used to assemble the standalone single-file Artifact demo
+# build — not part of the deployable project.
+client/.artifact-build/
+
 # SQLite database + WAL files (local data, never committed)
 server/data/
 *.db

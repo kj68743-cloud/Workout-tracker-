@@ -31,3 +31,13 @@ export function formatLongDate(dateStr) {
   if (dateStr.slice(0, 4) !== today.slice(0, 4)) opts.year = 'numeric';
   return d.toLocaleDateString(undefined, opts);
 }
+
+/** Compact form for the date-nav bar, which has less room to work with
+ *  (arrows + a "Today" button competing for space alongside it). */
+export function formatNavDate(dateStr) {
+  const d = new Date(dateStr + 'T00:00:00');
+  const today = todayStr();
+  const opts = { weekday: 'short', month: 'short', day: 'numeric' };
+  if (dateStr.slice(0, 4) !== today.slice(0, 4)) opts.year = 'numeric';
+  return d.toLocaleDateString(undefined, opts);
+}

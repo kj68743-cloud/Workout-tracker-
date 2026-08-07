@@ -1,4 +1,4 @@
-import { todayStr, shiftDate, formatLongDate } from '../utils/date.js';
+import { todayStr, shiftDate, formatNavDate } from '../utils/date.js';
 
 export default function DateNav({ date, onChange }) {
   const isToday = date === todayStr();
@@ -15,7 +15,7 @@ export default function DateNav({ date, onChange }) {
       </button>
 
       <label className="date-nav-picker">
-        <span className="date-nav-text">{formatLongDate(date)}</span>
+        <span className="date-nav-text">{formatNavDate(date)}</span>
         <input
           type="date"
           className="date-nav-input"
