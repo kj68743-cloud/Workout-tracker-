@@ -17,6 +17,7 @@ export default function TodayScreen() {
   const [payload, setPayload] = useState(null);
   const [error, setError] = useState(null);
   const [toast, setToast] = useState(null);
+  const [restActive, setRestActive] = useState(false);
   const restRef = useRef(null);
   const date = todayStr();
 
@@ -166,8 +167,12 @@ export default function TodayScreen() {
       <div className="section-label">Every day</div>
       <CardioCard cardio={payload.cardio} onToggle={handleToggleCardio} />
 
+      {/* Reserves space so the fixed rest-timer bar never floats on top of
+          (and blocks taps on) the cardio toggle above the bottom nav. */}
+      {restActive && <div style={{ height: 132 }} aria-hidden="true" />}
+
       {toast && <div className="toast">{toast}</div>}
-      <RestTimer ref={restRef} />
+      <RestTimer ref={restRef} onActiveChange={setRestActive} />
     </>
   );
 }

@@ -32,9 +32,17 @@ function vibrate(pattern) {
   }
 }
 
-const RestTimer = forwardRef(function RestTimer(_, ref) {
+const RestTimer = forwardRef(function RestTimer({ onActiveChange }, ref) {
   const [state, setState] = useState(null); // { label, total, remaining }
   const intervalRef = useRef(null);
+
+  // The timer bar is fixed near the bottom of the screen and can sit on
+  // top of the cardio toggle / last exercise's set circles while it's
+  // showing. Let the parent know so it can reserve space instead of
+  // letting the bar block taps underneath it.
+  useEffect(() => {
+    onActiveChange?.(!!state);
+  }, [state, onActiveChange]);
 
   useImperativeHandle(ref, () => ({
     start(seconds, label) {
