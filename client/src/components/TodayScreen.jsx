@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from '../api.js';
-import { todayStr, formatLongDate } from '../utils/date.js';
+import { todayStr } from '../utils/date.js';
 import DayTabs from './DayTabs.jsx';
+import DateNav from './DateNav.jsx';
 import ProgressCard from './ProgressCard.jsx';
 import ExerciseCard from './ExerciseCard.jsx';
 import CardioCard from './CardioCard.jsx';
@@ -14,28 +15,30 @@ export default function TodayScreen() {
     const saved = Number(localStorage.getItem(ACTIVE_DAY_KEY));
     return saved >= 1 && saved <= 5 ? saved : 1;
   });
+  // Which calendar date's log we're viewing/editing — Day 1-5 are workout
+  // split days, not calendar days, so this is independent of activeDay and
+  // defaults to today but can move to any past or future date.
+  const [date, setDate] = useState(todayStr);
   const [payload, setPayload] = useState(null);
   const [error, setError] = useState(null);
   const [toast, setToast] = useState(null);
   const [restActive, setRestActive] = useState(false);
   const restRef = useRef(null);
-  const date = todayStr();
 
-  const load = useCallback(async (day) => {
+  const load = useCallback(async (day, forDate) => {
     setError(null);
     try {
-      const data = await api.getDay(day, date);
+      const data = await api.getDay(day, forDate);
       setPayload(data);
     } catch (err) {
       setError(err.message);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [date]);
+  }, []);
 
   useEffect(() => {
     localStorage.setItem(ACTIVE_DAY_KEY, String(activeDay));
-    load(activeDay);
-  }, [activeDay, load]);
+    load(activeDay, date);
+  }, [activeDay, date, load]);
 
   function showToast(msg) {
     setToast(msg);
@@ -54,7 +57,9 @@ export default function TodayScreen() {
       return { ...p, exercises };
     });
 
-    if (completed) {
+    // Only auto-start the rest timer when logging today's workout — it
+    // doesn't make sense while backfilling a past date or planning ahead.
+    if (completed && date === todayStr()) {
       restRef.current?.start(exercise.restSeconds, exercise.name);
     }
 
@@ -72,7 +77,7 @@ export default function TodayScreen() {
       }
     } catch (err) {
       setError(err.message);
-      load(activeDay);
+      load(activeDay, date);
     }
   }
 
@@ -87,7 +92,7 @@ export default function TodayScreen() {
       }
     } catch (err) {
       setError(err.message);
-      load(activeDay);
+      load(activeDay, date);
     }
   }
 
@@ -106,11 +111,11 @@ export default function TodayScreen() {
   if (error && !payload) {
     return (
       <div className="state-message">
-        Couldn't reach the server.
+        Something went wrong loading that day's workout.
         <br />
         {error}
         <div style={{ marginTop: 16 }}>
-          <button className="btn-secondary" onClick={() => load(activeDay)}>
+          <button className="btn-secondary" onClick={() => load(activeDay, date)}>
             Retry
           </button>
         </div>
@@ -122,7 +127,7 @@ export default function TodayScreen() {
     return (
       <div className="state-message">
         <div className="spinner" />
-        Loading today's workout…
+        Loading workout…
       </div>
     );
   }
@@ -135,9 +140,10 @@ export default function TodayScreen() {
       <header className="app-header">
         <div>
           <h1>Five-Day Split</h1>
-          <div className="subtitle">{formatLongDate(date)}</div>
         </div>
       </header>
+
+      <DateNav date={date} onChange={setDate} />
 
       <DayTabs
         days={payload.days}
